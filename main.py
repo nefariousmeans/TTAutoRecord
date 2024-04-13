@@ -18,13 +18,11 @@ args = parser.parse_args()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BINARIES_DIR = os.path.join(BASE_DIR, 'binaries') 
 LOCK_FILES_DIR = os.path.join(BASE_DIR, 'lock_files')
-SEGMENTS_DIR = os.path.join(BASE_DIR, 'segments')
 VIDEOS_DIR = os.path.join(BASE_DIR, 'videos')
 
 def create_folders():
     # Ensure directories exist
     os.makedirs(LOCK_FILES_DIR, exist_ok=True)
-    os.makedirs(SEGMENTS_DIR, exist_ok=True)
     os.makedirs(VIDEOS_DIR, exist_ok=True)
 
 
