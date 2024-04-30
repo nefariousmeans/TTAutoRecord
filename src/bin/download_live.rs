@@ -13,7 +13,6 @@ use tokio::runtime::Builder;
 
 static STREAM_LINKS_JSON_PATH: &str = "../json/stream_links.json";
 static LOCK_FILES_DIR: &str = "../lock_files";
-static VIDEOS_DIR: &str = "../videos";
 
 async fn clear_lock_files(directory: &str) -> std::io::Result<()> {
     let paths = fs::read_dir(directory)?;
@@ -32,17 +31,17 @@ async fn read_stream_links() -> Result<HashMap<String, String>, Box<dyn std::err
     Ok(serde_json::from_str(&contents)?)
 }
 
-async fn download_livestream(username: &str, stream_link: &str, lock: Arc<Mutex<()>>, ffmpeg_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+async fn download_livestream(username: &str, stream_link: &str, lock: Arc<Mutex<()>>, ffmpeg_path: &Path, videos_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
     let _lock = lock.lock().await;
     let lock_file_path = format!("{}/{}.lock", LOCK_FILES_DIR, username);
 
     let stream_id = extract_stream_id(stream_link);
     let datetime = Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
 
-    let video_folder = format!("../videos/{}", username);
+    let video_folder = format!("{}", videos_dir);
     fs::create_dir_all(&video_folder)?;
 
-    let video_path = format!("{}/{}_{}.mkv", VIDEOS_DIR, username, datetime);
+    let video_path = format!("{}/{}_{}.mkv", videos_dir, username, datetime);
 
     let status = Command::new(ffmpeg_path)
         .arg("-i")
@@ -56,7 +55,7 @@ async fn download_livestream(username: &str, stream_link: &str, lock: Arc<Mutex<
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()?;
-    
+
     if status.success() {
         sleep(Duration::from_secs(1)).await;
     }
@@ -80,7 +79,6 @@ fn current_exe_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lock_files_dir = "../lock_files";
-    let videos_dir = "../videos";
 
     // Clear .lock files from lock_files directory
     if let Err(e) = clear_lock_files(lock_files_dir).await {
@@ -88,7 +86,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     fs::create_dir_all(lock_files_dir)?;
-    fs::create_dir_all(videos_dir)?;
+
+    // Define VIDEOS_DIR based on the value of OUT_DIR environment variable or default "../videos"
+    let videos_dir = if let Ok(out_dir) = env::var("OUT_DIR") {
+        out_dir
+    } else {
+        String::from("../videos")
+    };
 
     let runtime = Builder::new_multi_thread()
         .worker_threads(128)
@@ -112,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let handle = runtime.handle().clone(); // Clone handle for spawning tasks
                 let ffmpeg_path = current_exe_path()?.parent().unwrap().join("ffmpeg.exe");
                 handle.spawn(async move {
-                    if let Err(e) = download_livestream(&username, &stream_link, lock, &ffmpeg_path).await {
+                    if let Err(e) = download_livestream(&username, &stream_link, lock, &ffmpeg_path, &videos_dir).await {
                         eprintln!("Error downloading livestream for user {}: {}", username, e);
                     } else {
                         println!("Livestream downloaded successfully for user: {}", username);
