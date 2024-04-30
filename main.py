@@ -10,15 +10,20 @@ from modules.gui import main as gui_main
 # Set up argument parsing
 parser = argparse.ArgumentParser(description="Run the application with or without GUI.")
 parser.add_argument('--nogui', action='store_true', help="Disable the GUI to save resources.")
+parser.add_argument('--out_dir', type=str, help="Specify the output directory for downloaded videos.")
 
 # Parse arguments
 args = parser.parse_args()
 
 # Define paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-BINARIES_DIR = os.path.join(BASE_DIR, 'binaries') 
+BINARIES_DIR = os.path.join(BASE_DIR, 'binaries')
 LOCK_FILES_DIR = os.path.join(BASE_DIR, 'lock_files')
 VIDEOS_DIR = os.path.join(BASE_DIR, 'videos')
+
+if args.out_dir:
+    VIDEOS_DIR = os.path.abspath(args.out_dir)
+
 
 def create_folders():
     # Ensure directories exist
@@ -40,24 +45,27 @@ def disable_quickedit():
             print('Cannot disable QuickEdit mode! ' + str(e))
             print('.. As a consequence the script might be automatically\
             paused on Windows terminal, please disable it manually!')
-            
+
+
 def clear_lock_files():
     # Remove all .lock files in the lock_files directory
     for file in os.listdir(LOCK_FILES_DIR):
         if file.endswith(".lock"):
             os.remove(os.path.join(LOCK_FILES_DIR, file))
 
+
 def run_downloader():
     # Execute the download_live.exe within its directory
     executable_path = os.path.join(BINARIES_DIR, 'download_live.exe')
     subprocess.run([executable_path], cwd=BINARIES_DIR)
 
+
 if __name__ == "__main__":
-    
+
     disable_quickedit()
     create_folders()
     clear_lock_files()
-    
+
     # Create threads for each module's main function
     get_stream_link_thread = threading.Thread(target=get_stream_link_main)
     user_check_thread = threading.Thread(target=user_check_main)
@@ -66,17 +74,16 @@ if __name__ == "__main__":
     if not args.nogui:
         gui_thread = threading.Thread(target=gui_main)
         gui_thread.start()
-    
+
     # Start the threads
     user_check_thread.start()
     time.sleep(15)
     get_stream_link_thread.start()
     run_downloader()
 
-
     # Wait for all threads to finish
     get_stream_link_thread.join()
     user_check_thread.join()
-    
+
     if not args.nogui:
         gui_thread.join()
